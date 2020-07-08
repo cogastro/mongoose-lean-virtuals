@@ -146,6 +146,10 @@ function attachVirtualsToDoc(schema, doc, virtuals) {
       cur[sp[j]] = sp[j] in cur ? cur[sp[j]] : {};
       cur = cur[sp[j]];
     }
-    cur[sp[sp.length - 1]] = schema.virtuals[virtual].applyGetters(cur[sp[sp.length - 1]], doc);
+    try {
+      cur[sp[sp.length - 1]] = schema.virtuals[virtual].applyGetters(cur[sp[sp.length - 1]], doc);
+    } catch (e) {
+
+    }
   }
 }
