@@ -259,6 +259,41 @@ describe('Nested schema virtuals work', function() {
     });
   });
 
+  it('can access parent doc (gh-40) (gh-41)', function() {
+    const childSchema = new mongoose.Schema({ firstName: String });
+    childSchema.virtual('fullName').get(function() {
+      if (this instanceof mongoose.Document) {
+        return `${this.firstName} ${this.parent().lastName}`;
+      }
+      return `${this.firstName} ${mongooseLeanVirtuals.parent(this).lastName}`;
+    });
+
+    const parentSchema = new mongoose.Schema({
+      firstName: String,
+      lastName: String,
+      child: childSchema,
+      children: [childSchema]
+    });
+    parentSchema.plugin(mongooseLeanVirtuals);
+
+    const Model = mongoose.model('gh40', parentSchema);
+
+    return co(function*() {
+      yield Model.create({
+        firstName: 'Anakin',
+        lastName: 'Skywalker',
+        child: { firstName: 'Luke' },
+        children: [{ firstName: 'Luke' }, null]
+      });
+
+      let doc = yield Model.findOne().lean({ virtuals: true });
+
+      assert.equal(doc.child.fullName, 'Luke Skywalker');
+      assert.equal(doc.children[0].fullName, 'Luke Skywalker');
+      assert.equal(doc.children[1], null);
+    });
+  });
+
   it('child schemas (gh-28)', function() {
     const barSchema = Schema({ number: Number });
     barSchema.plugin(mongooseLeanVirtuals);
@@ -310,6 +345,34 @@ it('works with recursive schemas (gh-33)', function() {
     const doc = yield Post.findOne().lean({ virtuals: true });
     assert.equal(doc.comments.length, 1);
     assert.equal(doc.comments[0].answer, 42);
+  });
+});
+
+it('applies virtuals in doubly nested arrays (gh-38)', function() {
+  const subArraySchema = Schema({ name: String });
+  subArraySchema.virtual('lowercase').get(function() {
+    return this.name.toLowerCase();
+  });
+
+  const arraySchema = Schema({ subArray: [subArraySchema] });
+  const testSchema = Schema({ title: String, array: [arraySchema] });
+  testSchema.plugin(mongooseLeanVirtuals);
+  const Model = mongoose.model('gh38', testSchema);
+
+  return co(function*() {
+    yield Model.create({
+      title: 'test',
+      array: [{
+        subArray: [{
+          name: 'TEST',
+        }]
+      }]
+    });
+
+    const testDoc = yield Model.findOne({ title: 'test' }).lean({ virtuals: true });
+    const subObject = testDoc.array[0].subArray[0];
+    assert.equal(subObject.name, 'TEST');
+    assert.equal(subObject.lowercase, 'test');
   });
 });
 

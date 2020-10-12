@@ -3,6 +3,8 @@
 const flat = require('array.prototype.flat');
 const mpath = require('mpath');
 
+const documentParentsMap = new WeakMap();
+
 module.exports = function mongooseLeanVirtuals(schema) {
   const fn = attachVirtualsMiddleware(schema);
   schema.pre('find', function() {
@@ -26,6 +28,13 @@ module.exports = function mongooseLeanVirtuals(schema) {
   schema.post('findOneAndDelete', fn);
 };
 
+module.exports.parent = function(obj) {
+  if (obj == null) {
+    return void 0;
+  }
+  return documentParentsMap.get(obj);
+}
+
 function attachVirtualsMiddleware(schema) {
   return function(res) {
     if (this._mongooseOptions.lean && this._mongooseOptions.lean.virtuals) {
@@ -45,7 +54,7 @@ function attachVirtualsMiddleware(schema) {
   };
 }
 
-function attachVirtuals(schema, res, virtuals) {
+function attachVirtuals(schema, res, virtuals, parent) {
   if (res == null) {
     return res;
   }
@@ -68,17 +77,23 @@ function attachVirtuals(schema, res, virtuals) {
   }
 
   applyVirtualsToChildren(this, schema, res, virtualsForChildren);
-  return applyVirtualsToResult(schema, res, toApply);
+  return applyVirtualsToResult(schema, res, toApply, parent);
 }
 
-function applyVirtualsToResult(schema, res, toApply) {
+function applyVirtualsToResult(schema, res, toApply, parent) {
   if (Array.isArray(res)) {
     const len = res.length;
     for (let i = 0; i < len; ++i) {
+      if (parent != null && res[i] != null) {
+        documentParentsMap.set(res[i], parent);
+      }
       attachVirtualsToDoc(schema, res[i], toApply);
     }
     return res;
   } else {
+    if (parent != null && res != null) {
+      documentParentsMap.set(res, parent);
+    }
     return attachVirtualsToDoc(schema, res, toApply);
   }
 }
@@ -108,7 +123,7 @@ function applyVirtualsToChildren(doc, schema, res, virtuals) {
       }
     }
 
-    applyVirtualsToResult.call(doc, _schema, _doc, virtualsForChild);
+    attachVirtuals.call(doc, _schema, _doc, virtualsForChild, res);
   }
 }
 
@@ -122,16 +137,15 @@ function attachVirtualsToDoc(schema, doc, virtuals) {
   }
 
   if (schema.discriminators && Object.keys(schema.discriminators).length > 0) {
-    Object.keys(schema.discriminators).find(
-      function findCorrectDiscriminator(discriminatorKey) {
-        const discriminator = schema.discriminators[discriminatorKey];
-        const key = discriminator.discriminatorMapping.key;
-        const value = discriminator.discriminatorMapping.value;
-        if (doc[key] == value) {
-          schema = discriminator;
-        }
+    for (const discriminatorKey of Object.keys(schema.discriminators)) {
+      const discriminator = schema.discriminators[discriminatorKey];
+      const key = discriminator.discriminatorMapping.key;
+      const value = discriminator.discriminatorMapping.value;
+      if (doc[key] == value) {
+        schema = discriminator;
+        break;
       }
-    );
+    }
   }
 
   if (virtuals == null) {

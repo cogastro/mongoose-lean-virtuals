@@ -1,3 +1,19 @@
+0.7.1 / 2020-10-09
+==================
+ * fix: avoid WeakMap error when using arrays with `null` elements #41
+
+0.7.0 / 2020-10-06
+==================
+ * feat: add top-level `parent()` function that lets you get the subdocument's parent even though the subdoc is lean #40
+
+0.6.9 / 2020-08-29
+==================
+ * fix: avoid TypeError when there are multiple discriminators #39
+
+0.6.8 / 2020-06-11
+==================
+ * fix: apply virtuals in doubly nested document arrays #38
+
 0.6.7 / 2020-06-04
 ==================
  * fix build for node v6 and v4
